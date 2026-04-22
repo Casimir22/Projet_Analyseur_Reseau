@@ -1,34 +1,73 @@
-from scapy.all import sniff, conf 
-#Configuration pour Windows(évite les  erreur de socket)
-conf.L3socket = conf.L3socket
-#1. Classe Paquet : Definit la structure des donnée capturées 
-class Paquet :
-    def __init__(self,source,destination):
-      self.source = source
-      self.destination = destination
+import time
+from scapy.all import sniff
+
+# 1. Classe Paquet : Structure des données
+class Paquet:
+    def __init__(self, source, destination):
+        self.source = source
+        self.destination = destination
+        self.temps_creation = time.time()
+
     def __str__(self):
-            # Cette ligne transforme l'objet en texte lisible
         return f"Paquet IP : {self.source} ---> {self.destination}"
-class Reseau :
+
+# 2. Classe Reseau : Gestion du trafic et FIFO
+class Reseau:
     def __init__(self):
-        self.compteur = 0  
-    def analyser(self,pkt):
+        self.file_d_attente = []
+        self.capacite_max = 15
+        self.paquets_recus = 0
+        self.paquets_perdus = 0
+
+    def analyser(self, pkt):
         if pkt.haslayer("IP"):
-                  # On crée un objet de notre classe Paquet 
-                    nouveau_p = Paquet(pkt["IP"].src, pkt["IP"].dst)
-                    print(f"[POO] {nouveau_p}")
-                    self.compteur +=1
-#3. Classe Simulation : Pilote l'exécution du programme 
+            source = pkt["IP"].src
+            destination = pkt["IP"].dst
+            nouveau_paquet = Paquet(source, destination)
+            print(f" Traitement : {nouveau_paquet}") 
+            
+            self.paquets_recus += 1
+            self.paquets_recus += 1
+
+            # Vérification de la capacité (FIFO)
+            if len(self.file_d_attente) < self.capacite_max:
+                self.file_d_attente.append(nouveau_paquet)
+                
+                # Alerte de congestion à 80% (exigence cahier de charge)
+                if len(self.file_d_attente) >= (self.capacite_max * 0.8):
+                    print(f"  Machine débordée ({len(self.file_d_attente)}/50)")
+                
+                # Traitement FIFO : on retire le premier arrivé
+                self.file_d_attente.pop(0)
+            else:
+                self.paquets_perdus += 1
+                print(" Perte de données : File saturée")
+
+# 3. Classe Simulation : Pilotage et Bilan
 class Simulation:
     def __init__(self):
         self.mon_reseau = Reseau()
 
-    def lancer(self, limite=30):   
-         print("DEMARRAGE DE LA SIMULATION")
+    def lancer(self, limite=20):
+        print(" DEMARRAGE DE LA SIMULATION (BLOC 3)")
+        # Capture du trafic avec Scapy
+        sniff(prn=self.mon_reseau.analyser, store=False, count=limite)
+        self.affichage_resultats()
+
+    def affichage_resultats(self):
+        total = self.mon_reseau.paquets_recus
+        perdus = self.mon_reseau.paquets_perdus
+        taux = (perdus / total * 100) if total > 0 else 0
         
-         sniff(prn=self.mon_reseau.analyser, store=False, count=limite)
+        print("\n" + "="*30)
+        print("      BILAN FINAL")
+        print("="*30)
+        print(f"Paquets totaux  : {total}")
+        print(f"Paquets perdus  : {perdus}")
+        print(f"Taux de perte   : {taux:.2f}%")
+        print("="*30)
+
+# Bloc principal d'exécution
 if __name__ == "__main__":
     ma_simu = Simulation()
-    ma_simu.lancer()
-                             
-                                                        
+    ma_simu.lancer(limite=20)
