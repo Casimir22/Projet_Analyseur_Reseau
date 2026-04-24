@@ -1,91 +1,97 @@
+import sqlite3
 import time
 from collections import deque
 
-# --- FOCUS POO : Modélisation des structures ---
+# --- MODÉLISATION DU RÉSEAU (POO) ---
 
 class Paquet:
-    """Représente l'unité de donnée circulant sur le réseau."""
-    def __init__(self, id_paquet, source, destination):
-        self.id = id_paquet
-        self.source = source
-        self.destination = destination
-        self.temps_entree = time.time()
+    def __init__(self, id_p):
+        self.id = id_p
+        self.horodatage = time.time()
 
-class Noeud:
-    """Modélisation d'un nœud réseau (Routeur/Serveur)."""
-    def __init__(self, nom, debit_max):
+class NoeudReseau:
+    def __init__(self, nom, debit_max, capacite_buffer):
         self.nom = nom
-        self.debit_max = debit_max  # Nombre de paquets traitables par cycle
-        self.file_d_attente = deque() # File d'attente (Buffer)
-        self.voisins = [] # Liens du Graphe
+        self.debit_max = debit_max
+        self.capacite_buffer = capacite_buffer
+        self.file_attente = deque()
+        self.rejets = 0
 
-    def ajouter_lien(self, autre_noeud):
-        """Construit le Graphe en reliant les nœuds."""
-        if autre_noeud not in self.voisins:
-            self.voisins.append(autre_noeud)
-            autre_noeud.voisins.append(self)
-
-    def recevoir_paquet(self, paquet):
-        """Ajoute un paquet à la file d'attente."""
-        self.file_d_attente.append(paquet)
+    def recevoir_flux(self, paquet):
+        """Gestion du buffer : Référence réelle à la saturation mémoire."""
+        if len(self.file_attente) < self.capacite_buffer:
+            self.file_attente.append(paquet)
+            return True
+        self.rejets += 1
+        return False
 
     def traiter_cycle(self):
-        """Simule le traitement des paquets selon le débit max."""
-        traites = []
-        # On ne traite que ce que le débit permet
+        flux_sortant = []
         for _ in range(self.debit_max):
-            if self.file_d_attente:
-                traites.append(self.file_d_attente.popleft())
+            if self.file_attente:
+                flux_sortant.append(self.file_attente.popleft())
         
-        # --- IDENTIFICATION DES GOULOTS D'ÉTRANGLEMENT ---
-        if len(self.file_d_attente) > 3:
-            print(f"!!! GOULOT D'ÉTRANGLEMENT sur {self.nom} : {len(self.file_d_attente)} paquets bloqués.")
+        # Détection de goulot d'étranglement
+        if len(self.file_attente) > 5:
+            print(f" !!! GOULOT D'ÉTRANGLEMENT sur {self.nom} : {len(self.file_attente)} paquets bloqués.")
         
-        return traites
+        return flux_sortant
 
-class SimulateurReseau:
-    """Gère l'ensemble de la simulation et du flux de données."""
+class AnalyseurTrafic:
     def __init__(self):
-        self.noeuds = {}
+        # Configuration technique du routeur cible
+        self.routeur = NoeudReseau("ROUTEUR_A", debit_max=2, capacite_buffer=20)
+        self.serveur_final = []
 
-    def creer_topologie(self):
-        """Crée une structure de graphe spécifique."""
-        self.noeuds['PC_CLIENT'] = Noeud("PC_CLIENT", 10)
+    def lancer_analyse(self, volume_flux):
+        # 1. Injection du flux
+        for i in range(volume_flux):
+            p = Paquet(i)
+            self.routeur.recevoir_flux(p)
         
-        # ON RÉDUIT LE DÉBIT À 1 POUR CRÉER UN GOULOT
-        self.noeuds['ROUTEUR_A'] = Noeud("ROUTEUR_A", 1) 
+        # 2. Traitement cycle par cycle
+        while len(self.routeur.file_attente) > 0:
+            paquets_traites = self.routeur.traiter_cycle()
+            for p in paquets_traites:
+                self.serveur_final.append(p)
+                print(f" Paquet {p.id} arrive au Serveur.")
+            time.sleep(0.02)
+
+        # 3. Calcul des métriques finales
+        nb_recus = len(self.serveur_final)
+        taux_perte = ((volume_flux - nb_recus) / volume_flux) * 100
+        self.archiver_et_presenter(volume_flux, nb_recus, taux_perte)
+
+    def archiver_et_presenter(self, env, rec, perte):
+        # --- PERSISTANCE SQLITE (BLOC 4) ---
+        conn = sqlite3.connect("analyseur_reseau.db")
+        cur = conn.cursor()
+        cur.execute('''CREATE TABLE IF NOT EXISTS rapports 
+                      (id INTEGER PRIMARY KEY, date TEXT, env INTEGER, rec INTEGER, perte REAL, alerte TEXT)''')
         
-        self.noeuds['SERVEUR_WEB'] = Noeud("SERVEUR_WEB", 10)
+        alerte_statut = "true" if perte > 5 else "false"
+        cur.execute("INSERT INTO rapports (date, env, rec, perte, alerte) VALUES (?,?,?,?,?)",
+                    (time.strftime('%H:%M:%S'), env, rec, perte, alerte_statut))
+        conn.commit()
+        conn.close()
 
-        # Liens
-        self.noeuds['PC_CLIENT'].ajouter_lien(self.noeuds['ROUTEUR_A'])
-        self.noeuds['ROUTEUR_A'].ajouter_lien(self.noeuds['SERVEUR_WEB'])
-        # Création des liens (Graphe)
-        self.noeuds['PC_CLIENT'].ajouter_lien(self.noeuds['ROUTEUR_A'])
-        self.noeuds['ROUTEUR_A'].ajouter_lien(self.noeuds['SERVEUR_WEB'])
-
-    def lancer_flux(self, nb_paquets):
-        print(f"--- Simulation : Envoi de {nb_paquets} paquets via ROUTEUR_A ---")
+        # AFFICHAGE
+        print("\n" + "═"*55)
+        print(" " * 12 + "RAPPORT D'ANALYSE DE FLUX RÉSEAU")
+        print("═"*55)
+        print(f" HORODATAGE           : {time.strftime('%d/%m/%Y | %H:%M:%S')}")
+        print(f" NB_PAQUETS_ENVOYES   : {env}")
+        print(f" NB_PAQUETS_RECUS     : {rec}")
+        print(f" TAUX_PERTE           : {perte:.2f}%")
+        print("-" * 55)
         
-        # ÉTAPE A : On envoie tous les paquets au routeur d'un coup
-        for i in range(nb_paquets):
-            p = Paquet(i, "PC_CLIENT", "SERVEUR_WEB")
-            self.noeuds['ROUTEUR_A'].recevoir_paquet(p)
+        if alerte_statut == "true":
+            print(f" ALERTE_CRITIQUE      : {alerte_statut.upper()} (Surcharge détectée)")
+        else:
+            print(f" ALERTE_CRITIQUE      : {alerte_statut.upper()} (Flux stable)")
             
-        # ÉTAPE B : On traite les paquets cycle par cycle
-        while len(self.noeuds['ROUTEUR_A'].file_d_attente) > 0:
-            traites = self.noeuds['ROUTEUR_A'].traiter_cycle()
-            
-            for p_fini in traites:
-                # On envoie vers la destination finale
-                self.noeuds['SERVEUR_WEB'].recevoir_paquet(p_fini)
-                print(f"Paquet {p_fini.id} arrive au Serveur.")
-            
-            time.sleep(0.5) 
-
-# --- EXÉCUTION ---
+        
 if __name__ == "__main__":
-    sim = SimulateurReseau()
-    sim.creer_topologie()
-    # On envoie 15 paquets alors que le routeur ne peut en traiter que 2 par cycle
-    sim.lancer_flux(15)
+    analyseur = AnalyseurTrafic()
+    # Test  à 100 paquets pour démontrer l'alerte critique
+    analyseur.lancer_analyse(100)
