@@ -50,32 +50,38 @@ class SimulateurReseau:
 
     def creer_topologie(self):
         """Crée une structure de graphe spécifique."""
-        # Création des objets Noeud
         self.noeuds['PC_CLIENT'] = Noeud("PC_CLIENT", 10)
-        self.noeuds['ROUTEUR_A'] = Noeud("ROUTEUR_A", 2) # Débit faible volontaire
+        
+        # ON RÉDUIT LE DÉBIT À 1 POUR CRÉER UN GOULOT
+        self.noeuds['ROUTEUR_A'] = Noeud("ROUTEUR_A", 1) 
+        
         self.noeuds['SERVEUR_WEB'] = Noeud("SERVEUR_WEB", 10)
 
+        # Liens
+        self.noeuds['PC_CLIENT'].ajouter_lien(self.noeuds['ROUTEUR_A'])
+        self.noeuds['ROUTEUR_A'].ajouter_lien(self.noeuds['SERVEUR_WEB'])
         # Création des liens (Graphe)
         self.noeuds['PC_CLIENT'].ajouter_lien(self.noeuds['ROUTEUR_A'])
         self.noeuds['ROUTEUR_A'].ajouter_lien(self.noeuds['SERVEUR_WEB'])
 
     def lancer_flux(self, nb_paquets):
-        """Simule l'envoi massif de paquets du client vers le serveur."""
         print(f"--- Simulation : Envoi de {nb_paquets} paquets via ROUTEUR_A ---")
         
+        # ÉTAPE A : On envoie tous les paquets au routeur d'un coup
         for i in range(nb_paquets):
             p = Paquet(i, "PC_CLIENT", "SERVEUR_WEB")
-            # Le paquet arrive au premier routeur
             self.noeuds['ROUTEUR_A'].recevoir_paquet(p)
             
-            # Traitement à chaque étape
+        # ÉTAPE B : On traite les paquets cycle par cycle
+        while len(self.noeuds['ROUTEUR_A'].file_d_attente) > 0:
             traites = self.noeuds['ROUTEUR_A'].traiter_cycle()
             
             for p_fini in traites:
+                # On envoie vers la destination finale
                 self.noeuds['SERVEUR_WEB'].recevoir_paquet(p_fini)
-                print(f"Paquet {p_fini.id} arrivé au Serveur.")
-
-            time.sleep(0.1) # Simule le temps réel
+                print(f"Paquet {p_fini.id} arrive au Serveur.")
+            
+            time.sleep(0.5) 
 
 # --- EXÉCUTION ---
 if __name__ == "__main__":
