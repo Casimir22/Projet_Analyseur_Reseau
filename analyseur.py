@@ -1,73 +1,85 @@
 import time
-from scapy.all import sniff
+from collections import deque
 
-# 1. Classe Paquet : Structure des données
+# --- FOCUS POO : Modélisation des structures ---
+
 class Paquet:
-    def __init__(self, source, destination):
+    """Représente l'unité de donnée circulant sur le réseau."""
+    def __init__(self, id_paquet, source, destination):
+        self.id = id_paquet
         self.source = source
         self.destination = destination
-        self.temps_creation = time.time()
+        self.temps_entree = time.time()
 
-    def __str__(self):
-        return f"Paquet IP : {self.source} ---> {self.destination}"
+class Noeud:
+    """Modélisation d'un nœud réseau (Routeur/Serveur)."""
+    def __init__(self, nom, debit_max):
+        self.nom = nom
+        self.debit_max = debit_max  # Nombre de paquets traitables par cycle
+        self.file_d_attente = deque() # File d'attente (Buffer)
+        self.voisins = [] # Liens du Graphe
 
-# 2. Classe Reseau : Gestion du trafic et FIFO
-class Reseau:
-    def __init__(self):
-        self.file_d_attente = []
-        self.capacite_max = 15
-        self.paquets_recus = 0
-        self.paquets_perdus = 0
+    def ajouter_lien(self, autre_noeud):
+        """Construit le Graphe en reliant les nœuds."""
+        if autre_noeud not in self.voisins:
+            self.voisins.append(autre_noeud)
+            autre_noeud.voisins.append(self)
 
-    def analyser(self, pkt):
-        if pkt.haslayer("IP"):
-            source = pkt["IP"].src
-            destination = pkt["IP"].dst
-            nouveau_paquet = Paquet(source, destination)
-            print(f" Traitement : {nouveau_paquet}") 
-            
-            self.paquets_recus += 1
-            self.paquets_recus += 1
+    def recevoir_paquet(self, paquet):
+        """Ajoute un paquet à la file d'attente."""
+        self.file_d_attente.append(paquet)
 
-            # Vérification de la capacité (FIFO)
-            if len(self.file_d_attente) < self.capacite_max:
-                self.file_d_attente.append(nouveau_paquet)
-                
-                # Alerte de congestion à 80% (exigence cahier de charge)
-                if len(self.file_d_attente) >= (self.capacite_max * 0.8):
-                    print(f"  Machine débordée ({len(self.file_d_attente)}/50)")
-                
-                # Traitement FIFO : on retire le premier arrivé
-                self.file_d_attente.pop(0)
-            else:
-                self.paquets_perdus += 1
-                print(" Perte de données : File saturée")
-
-# 3. Classe Simulation : Pilotage et Bilan
-class Simulation:
-    def __init__(self):
-        self.mon_reseau = Reseau()
-
-    def lancer(self, limite=20):
-        print(" DEMARRAGE DE LA SIMULATION (BLOC 3)")
-        # Capture du trafic avec Scapy
-        sniff(prn=self.mon_reseau.analyser, store=False, count=limite)
-        self.affichage_resultats()
-
-    def affichage_resultats(self):
-        total = self.mon_reseau.paquets_recus
-        perdus = self.mon_reseau.paquets_perdus
-        taux = (perdus / total * 100) if total > 0 else 0
+    def traiter_cycle(self):
+        """Simule le traitement des paquets selon le débit max."""
+        traites = []
+        # On ne traite que ce que le débit permet
+        for _ in range(self.debit_max):
+            if self.file_d_attente:
+                traites.append(self.file_d_attente.popleft())
         
-        print("\n" + "="*30)
-        print("      BILAN FINAL")
-        print("="*30)
-        print(f"Paquets totaux  : {total}")
-        print(f"Paquets perdus  : {perdus}")
-        print(f"Taux de perte   : {taux:.2f}%")
-        print("="*30)
+        # --- IDENTIFICATION DES GOULOTS D'ÉTRANGLEMENT ---
+        if len(self.file_d_attente) > 3:
+            print(f"!!! GOULOT D'ÉTRANGLEMENT sur {self.nom} : {len(self.file_d_attente)} paquets bloqués.")
+        
+        return traites
 
-# Bloc principal d'exécution
+class SimulateurReseau:
+    """Gère l'ensemble de la simulation et du flux de données."""
+    def __init__(self):
+        self.noeuds = {}
+
+    def creer_topologie(self):
+        """Crée une structure de graphe spécifique."""
+        # Création des objets Noeud
+        self.noeuds['PC_CLIENT'] = Noeud("PC_CLIENT", 10)
+        self.noeuds['ROUTEUR_A'] = Noeud("ROUTEUR_A", 2) # Débit faible volontaire
+        self.noeuds['SERVEUR_WEB'] = Noeud("SERVEUR_WEB", 10)
+
+        # Création des liens (Graphe)
+        self.noeuds['PC_CLIENT'].ajouter_lien(self.noeuds['ROUTEUR_A'])
+        self.noeuds['ROUTEUR_A'].ajouter_lien(self.noeuds['SERVEUR_WEB'])
+
+    def lancer_flux(self, nb_paquets):
+        """Simule l'envoi massif de paquets du client vers le serveur."""
+        print(f"--- Simulation : Envoi de {nb_paquets} paquets via ROUTEUR_A ---")
+        
+        for i in range(nb_paquets):
+            p = Paquet(i, "PC_CLIENT", "SERVEUR_WEB")
+            # Le paquet arrive au premier routeur
+            self.noeuds['ROUTEUR_A'].recevoir_paquet(p)
+            
+            # Traitement à chaque étape
+            traites = self.noeuds['ROUTEUR_A'].traiter_cycle()
+            
+            for p_fini in traites:
+                self.noeuds['SERVEUR_WEB'].recevoir_paquet(p_fini)
+                print(f"Paquet {p_fini.id} arrivé au Serveur.")
+
+            time.sleep(0.1) # Simule le temps réel
+
+# --- EXÉCUTION ---
 if __name__ == "__main__":
-    ma_simu = Simulation()
-    ma_simu.lancer(limite=20)
+    sim = SimulateurReseau()
+    sim.creer_topologie()
+    # On envoie 15 paquets alors que le routeur ne peut en traiter que 2 par cycle
+    sim.lancer_flux(15)
