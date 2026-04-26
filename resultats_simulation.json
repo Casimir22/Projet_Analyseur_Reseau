@@ -1,0 +1,6 @@
+{
+    "nb_paquets_envoyes": 15,
+    "nb_paquets_recus": 15,
+    "taux_perte": "0.00%",
+    "alerte_critique": false
+}
