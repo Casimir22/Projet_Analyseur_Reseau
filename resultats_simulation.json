@@ -1,6 +1,62 @@
 {
-    "nb_paquets_envoyes": 15,
-    "nb_paquets_recus": 15,
-    "taux_perte": "0.00%",
-    "alerte_critique": false
+  "envoyes": 50,
+  "recus": 50,
+  "perdus": 0,
+  "taux": 0.0,
+  "source": "PC1",
+  "destination": "SERVEUR_WEB",
+  "temps": 130.77,
+  "goulots": [],
+  "seuil_goulot": 200,
+  "statistiques": [
+    {
+      "nom": "PC1",
+      "type": "PC",
+      "total_recus": 0,
+      "rejets": 0,
+      "occupation": "0.0%"
+    },
+    {
+      "nom": "PC2",
+      "type": "PC",
+      "total_recus": 0,
+      "rejets": 0,
+      "occupation": "0.0%"
+    },
+    {
+      "nom": "PC3",
+      "type": "PC",
+      "total_recus": 0,
+      "rejets": 0,
+      "occupation": "0.0%"
+    },
+    {
+      "nom": "WIFI",
+      "type": "WIFI",
+      "total_recus": 0,
+      "rejets": 0,
+      "occupation": "0.0%"
+    },
+    {
+      "nom": "ROUTEUR_A",
+      "type": "ROUTEUR",
+      "total_recus": 50,
+      "rejets": 0,
+      "occupation": "0.0%"
+    },
+    {
+      "nom": "ROUTEUR_B",
+      "type": "ROUTEUR",
+      "total_recus": 0,
+      "rejets": 0,
+      "occupation": "0.0%"
+    },
+    {
+      "nom": "SERVEUR_WEB",
+      "type": "SERVEUR",
+      "total_recus": 50,
+      "rejets": 0,
+      "occupation": "0.0%"
+    }
+  ]
 }

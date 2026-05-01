@@ -1,226 +1,224 @@
 import tkinter as tk
-from tkinter import messagebox, scrolledtext
-import threading
-from analyseur import AnalyseurTrafic, ErreurVolumeInvalide
+from tkinter import ttk
+from analyseur import AnalyseurTrafic, ErreurNoeudInexistant, ErreurVolumeInvalide
 
 
-# =============================================================================
-# INTERFACE GRAPHIQUE (TKINTER)
+class InterfacePro:
+    def __init__(self, root):
+        self.root = root
+        self.root.title("Analyseur Réseau PRO")
+        self.root.geometry("950x650")
+        self.root.configure(bg="#1e1e2f")
 
+        self.analyseur = AnalyseurTrafic()
 
-class InterfaceAnalyseur(tk.Tk):
-    """Interface graphique du simulateur de trafic réseau."""
+        # ================= STYLE =================
+        style = ttk.Style()
+        style.theme_use("default")
 
-    def __init__(self):
-        super().__init__()
-        self.title("Analyseur de Trafic Réseau — Université de Parakou")
-        self.geometry("700x600")
-        self.resizable(False, False)
-        self.configure(bg="#1e1e2e")
-        self._construire_interface()
+        style.configure("Treeview",
+                        background="#2e2e3e",
+                        foreground="white",
+                        rowheight=25,
+                        fieldbackground="#2e2e3e")
 
-    def _construire_interface(self):
-        """Construit tous les widgets de l'interface."""
+        style.configure("Treeview.Heading",
+                        font=("Arial", 10, "bold"))
 
-        # --- TITRE ---
-        titre = tk.Label(
-            self,
-            text="ANALYSEUR DE TRAFIC RÉSEAU SIMULÉ",
-            font=("Courier", 14, "bold"),
-            bg="#1e1e2e",
-            fg="#00ff99"
-        )
-        titre.pack(pady=15)
+        # ================= TITRE =================
+        tk.Label(root,
+                 text="📡 Analyseur de Flux Réseau",
+                 font=("Arial", 20, "bold"),
+                 bg="#1e1e2f",
+                 fg="#00d4ff").pack(pady=10)
 
-        sous_titre = tk.Label(
-            self,
-            text="PROJET 10",
-            font=("Courier", 9),
-            bg="#1e1e2e",
-            fg="#888888"
-        )
-        sous_titre.pack()
+        # ================= PARAMÈTRES =================
+        frame_param = tk.LabelFrame(root,
+                                    text="Paramètres utilisateur",
+                                    bg="#1e1e2f",
+                                    fg="white")
+        frame_param.pack(pady=10, fill="x", padx=20)
 
-        # --- SÉPARATEUR ---
-        tk.Frame(self, bg="#00ff99", height=1).pack(fill="x", padx=20, pady=10)
+        tk.Label(frame_param, text="Paquets :", bg="#1e1e2f", fg="white").grid(row=0, column=0, padx=5, pady=5)
+        self.entree = tk.Entry(frame_param)
+        self.entree.insert(0, "50")
+        self.entree.grid(row=0, column=1)
 
-        # --- SCHÉMA DU RÉSEAU ---
-        schema = tk.Label(
-            self,
-            text="PC_CLIENT  ──►  ROUTEUR_A  ──►  SERVEUR_WEB",
-            font=("Courier", 10, "bold"),
-            bg="#1e1e2e",
-            fg="#ffaa00"
-        )
-        schema.pack(pady=5)
+        tk.Label(frame_param, text="Source :", bg="#1e1e2f", fg="white").grid(row=0, column=2)
+        self.source_entry = tk.Entry(frame_param)
+        self.source_entry.insert(0, "PC1")
+        self.source_entry.grid(row=0, column=3)
 
-        # --- SÉPARATEUR ---
-        tk.Frame(self, bg="#333355", height=1).pack(fill="x", padx=20, pady=8)
+        tk.Label(frame_param, text="Destination :", bg="#1e1e2f", fg="white").grid(row=0, column=4)
+        self.dest_entry = tk.Entry(frame_param)
+        self.dest_entry.insert(0, "SERVEUR_WEB")
+        self.dest_entry.grid(row=0, column=5)
 
-        # --- ZONE DE PARAMÈTRE ---
-        frame_param = tk.Frame(self, bg="#1e1e2e")
-        frame_param.pack(pady=5)
+        # Nœuds valides affichés sous les champs
+        noeuds = ", ".join(self.analyseur.noeuds_disponibles())
+        tk.Label(frame_param,
+                 text=f"Nœuds valides : {noeuds}",
+                 bg="#1e1e2f",
+                 fg="#aaaaaa",
+                 font=("Arial", 8)).grid(row=1, column=0, columnspan=6, pady=(0, 5))
 
-        tk.Label(
-            frame_param,
-            text="Nombre de paquets à envoyer :",
-            font=("Courier", 10),
-            bg="#1e1e2e",
-            fg="#ffffff"
-        ).grid(row=0, column=0, padx=10)
+        # ================= BOUTONS =================
+        frame_btn = tk.Frame(root, bg="#1e1e2f")
+        frame_btn.pack(pady=10)
 
-        self.champ_volume = tk.Entry(
-            frame_param,
-            font=("Courier", 11),
-            width=10,
-            bg="#2e2e3e",
-            fg="#00ff99",
-            insertbackground="#00ff99",
-            justify="center"
-        )
-        self.champ_volume.insert(0, "100")
-        self.champ_volume.grid(row=0, column=1, padx=10)
+        tk.Button(frame_btn,
+                  text="▶ Lancer Simulation",
+                  bg="#00d4ff",
+                  fg="black",
+                  font=("Arial", 10, "bold"),
+                  command=self.lancer).pack(side=tk.LEFT, padx=5)
 
-        # --- BOUTON LANCER ---
-        self.bouton_lancer = tk.Button(
-            self,
-            text="LANCER LA SIMULATION",
-            font=("Courier", 11, "bold"),
-            bg="#00ff99",
-            fg="#1e1e2e",
-            activebackground="#00cc77",
-            cursor="hand2",
-            padx=20,
-            pady=8,
-            command=self._lancer_simulation
-        )
-        self.bouton_lancer.pack(pady=15)
+        tk.Button(frame_btn,
+                  text="📊 Voir Statistiques",
+                  bg="#4caf50",
+                  fg="white",
+                  font=("Arial", 10, "bold"),
+                  command=self.afficher_stats).pack(side=tk.LEFT, padx=5)
 
-        #ZONE D'AFFICHAGE 
-        tk.Label(
-            self,
-            text="RAPPORT DE SIMULATION :",
-            font=("Courier", 9, "bold"),
-            bg="#1e1e2e",
-            fg="#888888"
-        ).pack(anchor="w", padx=25)
+        tk.Button(frame_btn,
+                  text="🧹 Reset",
+                  bg="#f44336",
+                  fg="white",
+                  font=("Arial", 10, "bold"),
+                  command=self.clear).pack(side=tk.LEFT, padx=5)
 
-        self.zone_texte = scrolledtext.ScrolledText(
-            self,
-            font=("Courier", 9),
-            bg="#0d0d1a",
-            fg="#00ff99",
-            insertbackground="#00ff99",
-            width=80,
-            height=16,
-            state="disabled"
-        )
-        self.zone_texte.pack(padx=20, pady=5)
+        # ================= TABLE =================
+        frame_table = tk.Frame(root)
+        frame_table.pack(pady=10)
 
-        # BOUTON EFFACER
-        tk.Button(
-            self,
-            text="Effacer",
-            font=("Courier", 9),
-            bg="#2e2e3e",
-            fg="#888888",
-            cursor="hand2",
-            command=self._effacer
-        ).pack(pady=5)
+        colonnes = ("Nom", "Type", "Recus", "Rejets", "Buffer")
 
-    def _ecrire(self, texte):
-        """Écrit du texte coloré dans la zone d'affichage."""
-        self.zone_texte.configure(state="normal")
+        self.table = ttk.Treeview(frame_table,
+                                  columns=colonnes,
+                                  show="headings",
+                                  height=8)
 
-        # Coloration automatique selon le contenu
-        if "REJET" in texte or "SATURÉ" in texte or "GOULOT" in texte:
-            self.zone_texte.tag_config("orange", foreground="#ffaa00")
-            self.zone_texte.insert(tk.END, texte + "\n", "orange")
-        elif "ALERTE" in texte and "FALSE" not in texte:
-            self.zone_texte.tag_config("rouge", foreground="#ff4444")
-            self.zone_texte.insert(tk.END, texte + "\n", "rouge")
-        elif "FALSE" in texte or "stable" in texte:
-            self.zone_texte.tag_config("vert_clair", foreground="#00ff99")
-            self.zone_texte.insert(tk.END, texte + "\n", "vert_clair")
-        elif "PERTE" in texte and "5%" not in texte:
-            self.zone_texte.tag_config("rouge", foreground="#ff4444")
-            self.zone_texte.insert(tk.END, texte + "\n", "rouge")
-        else:
-            self.zone_texte.insert(tk.END, texte + "\n")
+        for col in colonnes:
+            self.table.heading(col, text=col)
+            self.table.column(col, width=120, anchor="center")
 
-        self.zone_texte.configure(state="disabled")
-        self.zone_texte.see(tk.END)
+        self.table.pack()
 
-    def _effacer(self):
-        """Efface la zone d'affichage."""
-        self.zone_texte.configure(state="normal")
-        self.zone_texte.delete(1.0, tk.END)
-        self.zone_texte.configure(state="disabled")
+        # ================= ZONE TEXTE =================
+        self.texte = tk.Text(root,
+                             height=15,
+                             width=110,
+                             bg="#0f172a",
+                             fg="white")
+        self.texte.pack(pady=10)
 
-    def _lancer_simulation(self):
-        """Lance la simulation dans un thread séparé."""
-        try:
-            volume = int(self.champ_volume.get())
-        except ValueError:
-            messagebox.showerror(
-                "Erreur",
-                "Veuillez entrer un nombre entier valide."
-            )
-            return
+        # Styles texte
+        self.texte.tag_config("titre",   font=("Arial", 16, "bold"), foreground="cyan")
+        self.texte.tag_config("section", font=("Arial", 12, "bold"), foreground="yellow")
+        self.texte.tag_config("ok",      foreground="lightgreen")
+        self.texte.tag_config("erreur",  foreground="#ff6b6b")
+        self.texte.tag_config("warning", foreground="orange")
 
-        self._effacer()
-        self.bouton_lancer.configure(
-            state="disabled",
-            text=" Simulation en cours..."
-        )
-        self._ecrire("=" * 55)
-        self._ecrire("  Simulation lancée avec {} paquets...".format(volume))
-        self._ecrire("=" * 55)
+        # Affichage initial des stats vides
+        self.afficher_stats()
 
-        thread = threading.Thread(
-            target=self._executer_simulation,
-            args=(volume,),
-            daemon=True
-        )
-        thread.start()
+    # ================= ACTIONS =================
 
-    def _executer_simulation(self, volume):
-        """Exécute la simulation et affiche les résultats."""
-        import io
-        import sys
-
-        capture = io.StringIO()
-        sys.stdout = capture
+    def lancer(self):
+        self.texte.delete("1.0", tk.END)
 
         try:
-            analyseur = AnalyseurTrafic()
-            analyseur.lancer_analyse(volume)
-        except ErreurVolumeInvalide as e:
-            sys.stdout = sys.__stdout__
-            self.after(0, lambda: messagebox.showerror("Erreur", str(e)))
-        except Exception as e:
-            sys.stdout = sys.__stdout__
-            self.after(0, lambda: messagebox.showerror("Erreur inattendue", str(e)))
-        finally:
-            sys.stdout = sys.__stdout__
-            sortie = capture.getvalue()
+            valeur = self.entree.get().strip()
 
-            for ligne in sortie.splitlines():
-                self.after(0, lambda l=ligne: self._ecrire(l))
-
-            self.after(
-                500,
-                lambda: self.bouton_lancer.configure(
-                    state="normal",
-                    text="▶  LANCER LA SIMULATION"
+            # Validation volume
+            if not valeur or not valeur.lstrip("-").isdigit():
+                raise ErreurVolumeInvalide(
+                    "Le nombre de paquets doit être un entier positif (ex: 50, 100, 500)."
                 )
-            )
+
+            volume = int(valeur)
+
+            source      = self.source_entry.get().strip().upper()
+            destination = self.dest_entry.get().strip().upper()
+
+            # Validation source/destination vides
+            if not source:
+                raise ErreurNoeudInexistant("(vide)", self.analyseur.noeuds_disponibles())
+            if not destination:
+                raise ErreurNoeudInexistant("(vide)", self.analyseur.noeuds_disponibles())
+
+            # Lancement
+            res = self.analyseur.lancer_analyse(volume, source, destination)
+
+            self.afficher_resultats(res)
+            self.afficher_stats()
+
+        except ErreurVolumeInvalide as e:
+            self.texte.insert(tk.END, f"❌ Volume invalide : {e}\n", "erreur")
+
+        except ErreurNoeudInexistant as e:
+            self.texte.insert(tk.END, f"❌ {e}\n", "erreur")
+
+        except Exception as e:
+            self.texte.insert(tk.END, f"❌ Erreur inattendue : {e}\n", "erreur")
+
+    def afficher_resultats(self, res):
+        self.texte.insert(tk.END, "🎯 RESULTAT FINAL\n", "titre")
+
+        self.texte.insert(tk.END, "\n👉 Paramètres utilisateur\n", "section")
+        self.texte.insert(tk.END, f"\n   Paquets     : {res['envoyes']}")
+        self.texte.insert(tk.END, f"\n   Source      : {res['source']}")
+        self.texte.insert(tk.END, f"\n   Destination : {res['destination']}\n")
+
+        self.texte.insert(tk.END, "\n👉 Résultats simulation\n", "section")
+        self.texte.insert(tk.END, f"\n   Envoyés : {res['envoyes']}")
+        self.texte.insert(tk.END, f"\n   Reçus   : {res['recus']}")
+        self.texte.insert(tk.END, f"\n   Perdus  : {res['perdus']}")
+        self.texte.insert(tk.END, f"\n   Taux    : {res['taux']} %")
+        self.texte.insert(tk.END, f"\n   Temps   : {res['temps']} ms\n")
+
+        self.texte.insert(tk.END, "\n🚨 Analyse réseau\n", "section")
+
+        if res["goulots"]:
+            for g in res["goulots"]:
+                self.texte.insert(tk.END, f"\n   ⚠  {g}", "warning")
+        else:
+            self.texte.insert(tk.END, "\n   ✅ Aucun goulot détecté", "ok")
+
+        self.texte.insert(tk.END, "\n\n✔ Simulation terminée\n", "ok")
+
+    def afficher_stats(self):
+        # Vider la table
+        for row in self.table.get_children():
+            self.table.delete(row)
+
+        # Remplir avec les stats actuelles
+        stats = self.analyseur.statistiques()
+
+        for s in stats:
+            self.table.insert("", tk.END, values=(
+                s["nom"],
+                s["type"],
+                s["total_recus"],
+                s["rejets"],
+                s["occupation"]
+            ))
+
+    def clear(self):
+        self.texte.delete("1.0", tk.END)
+
+        # Reset complet du réseau
+        self.analyseur.reseau.reset()
+
+        # Rafraîchir la table avec les zéros
+        self.afficher_stats()
+
+        self.texte.insert(tk.END, "✔ Réseau remis à zéro.\n", "ok")
 
 
-# =============================================================================
-# POINT D'ENTRÉE
-# =============================================================================
+# ================= LANCEMENT =================
 
 if __name__ == "__main__":
-    app = InterfaceAnalyseur()
-    app.mainloop()
+    root = tk.Tk()
+    app = InterfacePro(root)
+    root.mainloop()
